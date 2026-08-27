@@ -148,11 +148,10 @@ button {
 #printArea { display: none; }
 
 @media print {
-  header, .top-bar, .form-card, .contract-actions { display: none !important; }
+  header, .top-bar, .form-card, .list-card { display: none !important; }
   #printArea {
     display: block !important;
   }
-  .list-card { box-shadow: none; }
   body { background: white; }
   main { max-width: 100%; margin: 0; padding: 0; }
 }
