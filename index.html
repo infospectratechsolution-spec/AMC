@@ -140,8 +140,36 @@ button {
 }
 .btn-edit { background: #e8eef5; color: #1a3a5c; }
 .btn-delete { background: #fde3e3; color: #b32424; }
+.btn-print { background: #e2f5e9; color: #1c7c40; }
 
 .empty-state { text-align: center; color: #888; padding: 30px 0; }
+
+/* Print report styles */
+#printArea { display: none; }
+
+@media print {
+  header, .top-bar, .form-card, .contract-actions { display: none !important; }
+  #printArea {
+    display: block !important;
+  }
+  .list-card { box-shadow: none; }
+  body { background: white; }
+  main { max-width: 100%; margin: 0; padding: 0; }
+}
+
+#printArea h2 { margin-bottom: 4px; }
+#printArea .print-date { color: #666; font-size: 0.85rem; margin-bottom: 16px; }
+#printArea table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+#printArea th, #printArea td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: left;
+}
+#printArea th { background: #f0f2f4; }
 
 .top-bar {
   max-width: 900px;
@@ -166,6 +194,7 @@ button {
   </header>
 
   <div class="top-bar">
+    <button id="printBtn">Print Report</button>
     <button id="exportBtn">Export Backup (JSON)</button>
     <button id="importBtn">Import Backup</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
@@ -223,6 +252,26 @@ button {
       <h2>All Contracts</h2>
       <div id="contractsList" class="contracts-list"></div>
     </section>
+
+    <!-- Hidden print-only report, filled and shown just before printing -->
+    <div id="printArea">
+      <h2>AMC Contract Tracker — Report</h2>
+      <p class="print-date"></p>
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Equipment</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="printTableBody"></tbody>
+      </table>
+    </div>
   </main>
 
 <script>
@@ -263,6 +312,7 @@ function render() {
         <span class="badge ${c.status}">${c.status === 'ExpiringSoon' ? 'Expiring Soon' : c.status}</span>
       </div>
       <div class="contract-actions">
+        <button class="btn-print" onclick="printSingleContract(${c.id})">Print</button>
         <button class="btn-edit" onclick="editContract(${c.id})">Edit</button>
         <button class="btn-delete" onclick="deleteContract(${c.id})">Delete</button>
       </div>
@@ -366,6 +416,53 @@ document.getElementById('importFile').addEventListener('change', (e) => {
     }
   };
   reader.readAsText(file);
+});
+
+// ---- Print single contract ----
+function printSingleContract(id) {
+  const c = loadData().find(x => x.id === id);
+  if (!c) return;
+  const tbody = document.getElementById('printTableBody');
+  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
+  document.querySelector('#printArea h2').textContent = 'Contract Report — ' + c.customer_name;
+
+  tbody.innerHTML = `
+    <tr>
+      <td>${escapeHtml(c.customer_name)}</td>
+      <td>${escapeHtml(c.equipment)}</td>
+      <td>${c.contract_start}</td>
+      <td>${c.contract_end}</td>
+      <td>${c.amount ? 'PKR ' + escapeHtml(c.amount) : '-'}</td>
+      <td>${c.status === 'ExpiringSoon' ? 'Expiring Soon' : c.status}</td>
+      <td>${escapeHtml(c.notes || '-')}</td>
+    </tr>
+  `;
+  window.print();
+}
+
+// ---- Print full report ----
+document.getElementById('printBtn').addEventListener('click', () => {
+  document.querySelector('#printArea h2').textContent = 'AMC Contract Tracker — Report';
+  const data = loadData().sort((a, b) => a.contract_end.localeCompare(b.contract_end));
+  const tbody = document.getElementById('printTableBody');
+  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
+
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No contracts to report.</td></tr>';
+  } else {
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td>${escapeHtml(c.customer_name)}</td>
+        <td>${escapeHtml(c.equipment)}</td>
+        <td>${c.contract_start}</td>
+        <td>${c.contract_end}</td>
+        <td>${c.amount ? 'PKR ' + escapeHtml(c.amount) : '-'}</td>
+        <td>${c.status === 'ExpiringSoon' ? 'Expiring Soon' : c.status}</td>
+        <td>${escapeHtml(c.notes || '-')}</td>
+      </tr>
+    `).join('');
+  }
+  window.print();
 });
 
 render();
