@@ -146,29 +146,12 @@ button {
 
 /* Print report styles */
 #printArea { display: none; }
-#printArea.onscreen-view {
-  display: block;
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-#printArea.onscreen-view .print-view-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-#printArea .print-view-actions { display: none; }
-#printArea.onscreen-view .print-view-actions { display: flex; }
-.btn-close-view { background: #eee; color: #333; }
-.btn-print-view { background: #1a3a5c; color: white; }
 
 @media print {
-  header, .top-bar, .form-card, .list-card, .report-history-card { display: none !important; }
+  header, .top-bar, .form-card, .list-card { display: none !important; }
   #printArea {
     display: block !important;
   }
-  .print-view-actions { display: none !important; }
   body { background: white; }
   main { max-width: 100%; margin: 0; padding: 0; }
 }
@@ -198,23 +181,6 @@ button {
   text-align: left;
 }
 #printArea th { background: #f0f2f4; }
-
-.report-history-card { margin-top: 0; }
-.report-history-list { display: grid; gap: 10px; }
-.report-history-item {
-  border: 1px solid #e5e8ec;
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-.report-history-item .rh-info h4 { font-size: 0.9rem; margin-bottom: 2px; }
-.report-history-item .rh-info p { font-size: 0.78rem; color: #777; }
-.report-history-item .rh-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.report-history-item .rh-actions button { padding: 6px 12px; font-size: 0.78rem; }
-.btn-view { background: #e8eef5; color: #1a3a5c; }
 
 .top-bar {
   max-width: 900px;
@@ -296,11 +262,6 @@ button {
     <section class="list-card">
       <h2>All Contracts</h2>
       <div id="contractsList" class="contracts-list"></div>
-    </section>
-
-    <section class="list-card report-history-card">
-      <h2>Report History</h2>
-      <div id="reportHistoryList" class="report-history-list"></div>
     </section>
 
     <!-- Hidden print-only report, filled and shown just before printing -->
@@ -474,38 +435,38 @@ document.getElementById('importFile').addEventListener('change', (e) => {
 });
 
 // ---- Print single contract ----
-// ---- Report history storage ----
-const REPORTS_KEY = 'amc_reports_v1';
-
-function loadReports() {
-  const raw = localStorage.getItem(REPORTS_KEY);
-  return raw ? JSON.parse(raw) : [];
-}
-function saveReports(list) {
-  localStorage.setItem(REPORTS_KEY, JSON.stringify(list));
-}
-function nextReportId(list) {
-  return list.length ? Math.max(...list.map(r => r.id)) + 1 : 1;
-}
-
-function buildRowsFor(contracts) {
-  return contracts.map(c => ({
-    customer_name: c.customer_name,
-    equipment: c.equipment,
-    contract_start: c.contract_start,
-    contract_end: c.contract_end,
-    amount: c.amount,
-    status: c.status,
-    notes: c.notes
-  }));
-}
-
-function renderPrintTable(rows) {
+function printSingleContract(id) {
+  const c = loadData().find(x => x.id === id);
+  if (!c) return;
   const tbody = document.getElementById('printTableBody');
-  if (rows.length === 0) {
+  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
+  document.querySelector('#printArea h2').textContent = 'Contract Report — ' + c.customer_name;
+
+  tbody.innerHTML = `
+    <tr>
+      <td>${escapeHtml(c.customer_name)}</td>
+      <td>${escapeHtml(c.equipment)}</td>
+      <td>${c.contract_start}</td>
+      <td>${c.contract_end}</td>
+      <td>${c.amount ? 'PKR ' + escapeHtml(c.amount) : '-'}</td>
+      <td>${c.status === 'ExpiringSoon' ? 'Expiring Soon' : c.status}</td>
+      <td>${escapeHtml(c.notes || '-')}</td>
+    </tr>
+  `;
+  window.print();
+}
+
+// ---- Print full report ----
+document.getElementById('printBtn').addEventListener('click', () => {
+  document.querySelector('#printArea h2').textContent = 'AMC Contract Tracker — Report';
+  const data = loadData().sort((a, b) => a.contract_end.localeCompare(b.contract_end));
+  const tbody = document.getElementById('printTableBody');
+  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
+
+  if (data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7">No contracts to report.</td></tr>';
   } else {
-    tbody.innerHTML = rows.map(c => `
+    tbody.innerHTML = data.map(c => `
       <tr>
         <td>${escapeHtml(c.customer_name)}</td>
         <td>${escapeHtml(c.equipment)}</td>
@@ -517,102 +478,9 @@ function renderPrintTable(rows) {
       </tr>
     `).join('');
   }
-}
-
-function saveReportRecord(title, rows) {
-  const reports = loadReports();
-  const record = {
-    id: nextReportId(reports),
-    title,
-    generated_at: new Date().toISOString(),
-    rows
-  };
-  reports.unshift(record); // newest first
-  saveReports(reports);
-  renderReportHistory();
-  return record;
-}
-
-function renderReportHistory() {
-  const listEl = document.getElementById('reportHistoryList');
-  const reports = loadReports();
-  if (reports.length === 0) {
-    listEl.innerHTML = '<p class="empty-state">No saved reports yet.</p>';
-    return;
-  }
-  listEl.innerHTML = reports.map(r => `
-    <div class="report-history-item">
-      <div class="rh-info">
-        <h4>${escapeHtml(r.title)}</h4>
-        <p>${new Date(r.generated_at).toLocaleString()} • ${r.rows.length} contract(s)</p>
-      </div>
-      <div class="rh-actions">
-        <button class="btn-view" onclick="viewReport(${r.id})">View</button>
-        <button class="btn-delete" onclick="deleteReport(${r.id})">Delete</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function viewReport(id) {
-  const report = loadReports().find(r => r.id === id);
-  if (!report) return;
-  document.querySelector('#printArea h2').textContent = report.title;
-  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date(report.generated_at).toLocaleDateString();
-  renderPrintTable(report.rows);
-
-  const printArea = document.getElementById('printArea');
-  printArea.classList.add('onscreen-view');
-  // Insert view-mode action buttons (Close / Print) once, above the table
-  let actionsBar = printArea.querySelector('.print-view-actions');
-  if (!actionsBar) {
-    actionsBar = document.createElement('div');
-    actionsBar.className = 'print-view-actions';
-    actionsBar.innerHTML = `
-      <button class="btn-print-view" onclick="window.print()">Print this Report</button>
-      <button class="btn-close-view" onclick="closeReportView()">Close</button>
-    `;
-    printArea.insertBefore(actionsBar, printArea.firstChild);
-  }
-  if (printArea.scrollIntoView) printArea.scrollIntoView({ behavior: 'smooth' });
-}
-
-function closeReportView() {
-  document.getElementById('printArea').classList.remove('onscreen-view');
-}
-
-function deleteReport(id) {
-  if (!confirm('Delete this saved report?')) return;
-  saveReports(loadReports().filter(r => r.id !== id));
-  renderReportHistory();
-}
-
-// ---- Print single contract ----
-function printSingleContract(id) {
-  const c = loadData().find(x => x.id === id);
-  if (!c) return;
-  const title = 'Contract Report — ' + c.customer_name;
-  document.querySelector('#printArea h2').textContent = title;
-  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
-  const rows = buildRowsFor([c]);
-  renderPrintTable(rows);
-  saveReportRecord(title, rows);
-  window.print();
-}
-
-// ---- Print full report ----
-document.getElementById('printBtn').addEventListener('click', () => {
-  const title = 'AMC Contract Tracker — Report';
-  document.querySelector('#printArea h2').textContent = title;
-  const data = loadData().sort((a, b) => a.contract_end.localeCompare(b.contract_end));
-  document.querySelector('#printArea .print-date').textContent = 'Generated: ' + new Date().toLocaleDateString();
-  const rows = buildRowsFor(data);
-  renderPrintTable(rows);
-  saveReportRecord(title, rows);
   window.print();
 });
 
-renderReportHistory();
 render();
 </script>
 </body>
