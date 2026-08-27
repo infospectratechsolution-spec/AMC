@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMC Tracker</title>
+
+<!-- Makes "Add to Home Screen" behave like a real app: no browser bar, custom name, custom icon -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AMC Tracker">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a3a5c">
+
+<!-- App icon (inline, no external file needed) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a3a5c'/%3E%3Ctext x='50' y='62' font-size='38' font-family='Arial,sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3EST%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231a3a5c'/%3E%3Ctext x='50' y='62' font-size='38' font-family='Arial,sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3EST%3C/text%3E%3C/svg%3E">
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f4f6f8;
+  color: #1a1a2e;
+  padding-bottom: 40px;
+}
+
+header {
+  background: linear-gradient(135deg, #1a3a5c, #2a5a8c);
+  color: white;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+header h1 { font-size: 1.6rem; }
+header .subtitle { opacity: 0.85; font-size: 0.9rem; margin-top: 4px; }
+
+main {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 0 16px;
+  display: grid;
+  gap: 20px;
+}
+
+.form-card, .list-card {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.form-card h2, .list-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+  color: #1a3a5c;
+}
+
+.form-row { margin-bottom: 14px; }
+.form-row label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #444;
+}
+
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #d5dae0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.form-row textarea { min-height: 60px; resize: vertical; }
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#submitBtn { background: #1a3a5c; color: white; }
+#submitBtn:hover { background: #2a5a8c; }
+
+#cancelEdit { background: #eee; color: #333; }
+
+.contracts-list { display: grid; gap: 12px; }
+
+.contract-item {
+  border: 1px solid #e5e8ec;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.contract-info h3 { font-size: 1rem; margin-bottom: 4px; }
+.contract-info p { font-size: 0.85rem; color: #555; margin: 2px 0; }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.badge.Active { background: #e2f5e9; color: #1c7c40; }
+.badge.ExpiringSoon { background: #fff3d6; color: #9a6a00; }
+.badge.Expired { background: #fde3e3; color: #b32424; }
+
+.contract-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.contract-actions button {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+.btn-edit { background: #e8eef5; color: #1a3a5c; }
+.btn-delete { background: #fde3e3; color: #b32424; }
+
+.empty-state { text-align: center; color: #888; padding: 30px 0; }
+
+.top-bar {
+  max-width: 900px;
+  margin: 12px auto 0;
+  padding: 0 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.top-bar button {
+  background: #eef1f4;
+  color: #333;
+  font-size: 0.8rem;
+  padding: 7px 14px;
+}
+</style>
+</head>
+<body>
+  <header>
+    <h1>AMC Contract Tracker</h1>
+    <p class="subtitle">Spectra Tech Solutions — Service Contracts</p>
+  </header>
+
+  <div class="top-bar">
+    <button id="exportBtn">Export Backup (JSON)</button>
+    <button id="importBtn">Import Backup</button>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+  </div>
+
+  <main>
+    <section class="form-card">
+      <h2 id="formTitle">Add New Contract</h2>
+      <form id="contractForm">
+        <input type="hidden" id="contractId">
+        <div class="form-row">
+          <label>Customer Name</label>
+          <input type="text" id="customer_name" required placeholder="e.g. ABC Steel Mills">
+        </div>
+        <div class="form-row">
+          <label>Equipment</label>
+          <input type="text" id="equipment" required placeholder="e.g. OES Spectrometer">
+        </div>
+        <div class="form-row two-col">
+          <div>
+            <label>Contract Start</label>
+            <input type="date" id="contract_start" required>
+          </div>
+          <div>
+            <label>Contract End</label>
+            <input type="date" id="contract_end" required>
+          </div>
+        </div>
+        <div class="form-row two-col">
+          <div>
+            <label>Amount (PKR)</label>
+            <input type="text" id="amount" placeholder="e.g. 150,000">
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="status">
+              <option value="Active">Active</option>
+              <option value="ExpiringSoon">Expiring Soon</option>
+              <option value="Expired">Expired</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Notes</label>
+          <textarea id="notes" placeholder="Any additional notes..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" id="submitBtn">Add Contract</button>
+          <button type="button" id="cancelEdit" style="display:none">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="list-card">
+      <h2>All Contracts</h2>
+      <div id="contractsList" class="contracts-list"></div>
+    </section>
+  </main>
+
+<script>
+// ---- Storage layer (localStorage — no server needed) ----
+const STORAGE_KEY = 'amc_contracts_v1';
+
+function loadData() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function nextId(data) {
+  return data.length ? Math.max(...data.map(c => c.id)) + 1 : 1;
+}
+
+const form = document.getElementById('contractForm');
+const listEl = document.getElementById('contractsList');
+const submitBtn = document.getElementById('submitBtn');
+const cancelEditBtn = document.getElementById('cancelEdit');
+const formTitle = document.getElementById('formTitle');
+let editingId = null;
+
+function render() {
+  const data = loadData().sort((a, b) => a.contract_end.localeCompare(b.contract_end));
+  if (data.length === 0) {
+    listEl.innerHTML = '<p class="empty-state">No contracts yet. Add your first one above.</p>';
+    return;
+  }
+  listEl.innerHTML = data.map(c => `
+    <div class="contract-item">
+      <div class="contract-info">
+        <h3>${escapeHtml(c.customer_name)}</h3>
+        <p>${escapeHtml(c.equipment)}</p>
+        <p>${c.contract_start} → ${c.contract_end}${c.amount ? ' • PKR ' + escapeHtml(c.amount) : ''}</p>
+        ${c.notes ? `<p><em>${escapeHtml(c.notes)}</em></p>` : ''}
+        <span class="badge ${c.status}">${c.status === 'ExpiringSoon' ? 'Expiring Soon' : c.status}</span>
+      </div>
+      <div class="contract-actions">
+        <button class="btn-edit" onclick="editContract(${c.id})">Edit</button>
+        <button class="btn-delete" onclick="deleteContract(${c.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const payload = {
+    customer_name: document.getElementById('customer_name').value,
+    equipment: document.getElementById('equipment').value,
+    contract_start: document.getElementById('contract_start').value,
+    contract_end: document.getElementById('contract_end').value,
+    amount: document.getElementById('amount').value,
+    status: document.getElementById('status').value,
+    notes: document.getElementById('notes').value,
+  };
+
+  let data = loadData();
+  if (editingId) {
+    data = data.map(c => c.id === editingId ? { ...c, ...payload } : c);
+  } else {
+    payload.id = nextId(data);
+    data.push(payload);
+  }
+  saveData(data);
+  resetForm();
+  render();
+});
+
+function editContract(id) {
+  const c = loadData().find(x => x.id === id);
+  if (!c) return;
+  editingId = id;
+  document.getElementById('customer_name').value = c.customer_name;
+  document.getElementById('equipment').value = c.equipment;
+  document.getElementById('contract_start').value = c.contract_start;
+  document.getElementById('contract_end').value = c.contract_end;
+  document.getElementById('amount').value = c.amount;
+  document.getElementById('status').value = c.status;
+  document.getElementById('notes').value = c.notes;
+  formTitle.textContent = 'Edit Contract';
+  submitBtn.textContent = 'Update Contract';
+  cancelEditBtn.style.display = 'inline-block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteContract(id) {
+  if (!confirm('Delete this contract?')) return;
+  saveData(loadData().filter(c => c.id !== id));
+  render();
+}
+
+cancelEditBtn.addEventListener('click', resetForm);
+
+function resetForm() {
+  form.reset();
+  editingId = null;
+  formTitle.textContent = 'Add New Contract';
+  submitBtn.textContent = 'Add Contract';
+  cancelEditBtn.style.display = 'none';
+}
+
+// ---- Backup export/import (so data isn't only stuck in one browser) ----
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = loadData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'amc-contracts-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const imported = JSON.parse(evt.target.result);
+      if (Array.isArray(imported)) {
+        saveData(imported);
+        render();
+        alert('Backup imported successfully.');
+      }
+    } catch (err) {
+      alert('Invalid backup file.');
+    }
+  };
+  reader.readAsText(file);
+});
+
+render();
+</script>
+</body>
+</html>
